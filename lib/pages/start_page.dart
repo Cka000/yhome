@@ -2,8 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'package:yhome/models/service.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:yhome/pages/home_page.dart';
 import 'package:flutter/material.dart';
+import 'package:yhome/pages/login_page.dart';
+import 'package:yhome/pages/auth_page.dart';
 
 class StartPage extends StatefulWidget {
   const StartPage({Key? key}) : super(key: key);
@@ -26,15 +27,23 @@ class _StartPageState extends State<StartPage> {
   ];
 
   int selectedService = 4;
+  Timer? _timer; // Timer reference
 
   @override
   void initState() {
-    Timer.periodic(Duration(seconds: 2), (timer) {
+    super.initState();
+    _timer = Timer.periodic(Duration(seconds: 2), (timer) {
+      if (!mounted) return; // check if widget is still in tree
       setState(() {
         selectedService = Random().nextInt(services.length);
       });
     });
-    super.initState();
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel(); // cancel timer on dispose
+    super.dispose();
   }
 
   @override
@@ -48,8 +57,8 @@ class _StartPageState extends State<StartPage> {
           children: [
             // Main scrollable content
             SingleChildScrollView(
-              padding: EdgeInsets.only(
-                  bottom: 200), // leave space for floating bottom
+              padding:
+                  EdgeInsets.only(bottom: 200), // space for floating bottom
               child: Column(
                 children: [
                   SizedBox(height: 20),
@@ -70,8 +79,11 @@ class _StartPageState extends State<StartPage> {
                       itemBuilder: (BuildContext context, int index) {
                         return FadeInUp(
                           delay: Duration(milliseconds: index * 100),
-                          child: serviceContainer(services[index].imageURL,
-                              services[index].name, index),
+                          child: serviceContainer(
+                            services[index].imageURL,
+                            services[index].name,
+                            index,
+                          ),
                         );
                       },
                     ),
@@ -150,7 +162,8 @@ class _StartPageState extends State<StartPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) => HomePage(),
+                                builder: (context) =>
+                                    const AuthPage(), // ✅ go to AuthPage
                               ),
                             );
                           },
@@ -191,7 +204,7 @@ class _StartPageState extends State<StartPage> {
           border: Border.all(
             color: selectedService == index
                 ? Colors.blue.shade100
-                : Colors.grey.withValues(alpha: 0),
+                : Colors.grey.withAlpha(0),
             width: 2.0,
           ),
           borderRadius: BorderRadius.circular(15.0),

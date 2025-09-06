@@ -1,5 +1,7 @@
 import 'package:animate_do/animate_do.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:yhome/models/service.dart';
+import 'package:yhome/pages/login_page.dart';
 import 'package:yhome/pages/select_service.dart';
 import 'package:yhome/pages/worker_profile.dart';
 import 'package:flutter/material.dart';
@@ -43,7 +45,8 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   List<Service> services = [
     Service('Cleaning', 'assets/images/cleaning.png'),
     Service('Plumber', 'assets/images/plumbing.png'),
@@ -120,6 +123,10 @@ class _HomePageState extends State<HomePage> {
     },
   ];
 
+  // Dashboard state and animation controller
+  late AnimationController _controller;
+  late Animation<Offset> _slideAnimation;
+
   @override
   void initState() {
     super.initState();
@@ -133,6 +140,29 @@ class _HomePageState extends State<HomePage> {
     } else {
       _recentProfiles = _dummyProfiles;
     }
+
+    // Animation setup
+    _controller = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 300),
+    );
+    _slideAnimation = Tween<Offset>(
+            begin: Offset(-1.0, 0.0), end: Offset(0.0, 0.0))
+        .animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  void _toggleDashboard() {
+    if (_controller.isCompleted) {
+      _controller.reverse();
+    } else {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -156,26 +186,186 @@ class _HomePageState extends State<HomePage> {
           )
         ],
         leading: GestureDetector(
-          onTap: () {
-            Navigator.pushNamed(context, '/login');
-          },
+          onTap: _toggleDashboard,
           child: Padding(
             padding: const EdgeInsets.all(10.0),
-            child: CircleAvatar(backgroundColor: Colors.white),
+            child: CircleAvatar(
+              backgroundColor: Colors.grey.shade200,
+              child: Icon(Icons.person, color: Colors.black),
+            ),
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.only(bottom: 30),
-        child: Column(
+      body: GestureDetector(
+        // swipe gestures
+        onHorizontalDragUpdate: (details) {
+          if (details.delta.dx > 10) {
+            _controller.forward(); // swipe right to open
+          } else if (details.delta.dx < -10) {
+            _controller.reverse(); // swipe left to close
+          }
+        },
+        child: Stack(
           children: [
-            _buildRecentSection(),
-            _buildCategoriesSection(),
-            _buildSelectCategoryButton(context),
-            _buildTopRatedAndNearbySection(),
-            SizedBox(height: 150),
+            // Main content
+            AbsorbPointer(
+              absorbing: _controller.isCompleted,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: 30),
+                child: Column(
+                  children: [
+                    _buildRecentSection(),
+                    _buildCategoriesSection(),
+                    _buildSelectCategoryButton(context),
+                    _buildTopRatedAndNearbySection(),
+                    SizedBox(height: 150),
+                  ],
+                ),
+              ),
+            ),
+
+            // Dimmed overlay
+            AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                return _controller.value > 0
+                    ? GestureDetector(
+                        onTap: _toggleDashboard,
+                        child: Container(
+                          color: Colors.black
+                              .withValues(alpha: _controller.value * 0.3),
+                        ),
+                      )
+                    : SizedBox.shrink();
+              },
+            ),
+
+            // Slide-in dashboard
+            SlideTransition(
+              position: _slideAnimation,
+              child: _buildDashboardPanel(),
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildDashboardPanel() {
+    return Container(
+      width: 250,
+      height: double.infinity,
+      color: Colors.grey.shade50,
+      padding: EdgeInsets.symmetric(vertical: 50, horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            "Hello, User!",
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
+            ),
+          ),
+          SizedBox(height: 40),
+          ElevatedButton.icon(
+            onPressed: () {},
+            icon: Icon(Icons.person, color: Colors.white),
+            label: Text(
+              "Profile",
+              style: TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              minimumSize: Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+          ),
+          SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () {},
+            icon: Icon(Icons.settings, color: Colors.white),
+            label: Text(
+              "Settings",
+              style: TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.black,
+              minimumSize: Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+          ),
+          SizedBox(height: 20),
+          // 🔹 Logout Button
+          ElevatedButton.icon(
+            onPressed: () async {
+              // Show confirmation dialog
+              final shouldLogout = await showDialog<bool>(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text("Confirm Logout"),
+                    content: const Text("Do you really want to log out?"),
+                    actions: [
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(false), // cancel
+                        child: const Text("No"),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            Navigator.of(context).pop(true), // confirm
+                        child: const Text("Yes"),
+                      ),
+                    ],
+                  );
+                },
+              );
+
+              // If user pressed "Yes"
+              if (shouldLogout == true) {
+                await FirebaseAuth.instance.signOut();
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                    builder: (context) => LoginPage(showRegisterPage: () {}),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.logout, color: Colors.white),
+            label: const Text(
+              "Logout",
+              style: TextStyle(color: Colors.white),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+          ),
+
+          Spacer(),
+          TextButton(
+            onPressed: _toggleDashboard,
+            child: Row(
+              children: [
+                Icon(Icons.close, color: Colors.black),
+                SizedBox(width: 10),
+                Text(
+                  "Close",
+                  style: TextStyle(color: Colors.black),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

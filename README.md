@@ -1,5 +1,6 @@
 # yhome
-
+make sure you go through any youtube tutorial on creating and connecting your project to firebase
+importantly make sure your gradle and java versions matches
 A home service app.
 
 ## Getting Started
